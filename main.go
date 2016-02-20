@@ -8,10 +8,16 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	// "sync"
 	"time"
 )
 
 const url string = "http://www.webservicex.net/globalweather.asmx/GetCitiesByCountry?CountryName="
+
+var msgs = make(chan string)
+var done = make(chan bool)
+
+// var wg sync.WaitGroup // 1
 
 type XmlRecord struct {
 	XMLName    xml.Name `xml: "string"`
@@ -28,6 +34,7 @@ type XmlRecord struct {
 type LogRecord struct {
 	Country string   `json:"country"`
 	Cities  []string `json:"cities"`
+	Error   string   `json:"error"`
 }
 
 func getXml(country string) string {
@@ -35,7 +42,7 @@ func getXml(country string) string {
 
 	if err != nil {
 		fmt.Println(err.Error())
-		os.Exit(1)
+		return ""
 	}
 
 	defer resp.Body.Close()
@@ -43,7 +50,7 @@ func getXml(country string) string {
 	contents, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("%s", err)
-		os.Exit(1)
+		return ""
 	}
 	return html.UnescapeString(string(contents))
 }
@@ -52,19 +59,17 @@ func convertToJson(xmlRecord XmlRecord) string {
 	records := xmlRecord.NewDataSet.Table
 	if len(records) > 0 {
 		var c string = xmlRecord.NewDataSet.Table[0].Country
-
 		var ct []string = make([]string, 0)
 
 		for _, element := range xmlRecord.NewDataSet.Table {
-			// element is the element from someSlice for where we are
 			ct = append(ct, element.City)
 		}
 
-		res2D := LogRecord{
+		rec := LogRecord{
 			Country: c,
 			Cities:  ct}
 
-		jsonData, _ := json.Marshal(res2D)
+		jsonData, _ := json.Marshal(rec)
 		return string(jsonData)
 	}
 	return ""
@@ -107,27 +112,67 @@ func appendToFile(filename, text string) {
 	defer f.Close()
 }
 
-func logToFile(text string) {
+func logToFile(msgCount int) {
+
 	current_time := time.Now().Local()
 	filename := "cities-" + current_time.Format("2006-01-02") + ".log"
-	appendToFile(filename, text)
+
+	for msgCount > 0 {
+		text := <-msgs
+		fmt.Println("appender get messege: ", text)
+		appendToFile(filename, text)
+		msgCount--
+	}
+
+	done <- true
+
+}
+
+func getCities(country string) {
+	// defer wg.Done() // 3
+
+	fmt.Println("Start getting cities from ", country)
+	xmlData := getXml(country)
+
+	// fmt.Println(xmlData)
+	v := XmlRecord{}
+	err := xml.Unmarshal([]byte(xmlData), &v)
+
+	if err != nil {
+		fmt.Printf("error: %v", err)
+	}
+
+	jsonStr := convertToJson(v)
+
+	if jsonStr == "" {
+		errJsonData, _ := json.Marshal(LogRecord{Country: country, Error: "Error while getting cities"})
+		errJson := string(errJsonData)
+		msgs <- errJson
+
+	} else {
+		fmt.Println("Converted json: ", jsonStr)
+		msgs <- jsonStr
+	}
 }
 
 func main() {
-	fmt.Println("Hello, start process...")
-	xmlData := getXml("Ukrain")
-	// fmt.Println(xmlData)
+	countries := os.Args[1:]
+	// countries := []string{"Ukrain", "Poland", "Russia3838"}
+	// wg.Add(1) // 2
 
-	v := XmlRecord{}
-	err1 := xml.Unmarshal([]byte(xmlData), &v)
-
-	if err1 != nil {
-		fmt.Printf("error: %v", err1)
-		return
+	for _, country := range countries {
+		go getCities(country)
 	}
 
-	json := convertToJson(v)
-	// fmt.Println("Converted json: ", json)
+	// go getCities()
 
-	logToFile(json)
+	// wg.Add(1) // 2
+	// go getCities()
+	// json := <-msgs
+
+	// wg.Wait() // 4
+	go logToFile(len(countries))
+
+	<-done
+	fmt.Println("main finished")
 }
