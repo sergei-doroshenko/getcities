@@ -180,7 +180,7 @@ func readConfig() Config {
 func main() {
 	config = readConfig()
 
-	countries := os.Args[1:config.Queries]
+	countries := os.Args[1:]
 	// countries := []string{"Ukrain", "Poland", "Russia3838"}
 	// wg.Add(1) // 2
 
