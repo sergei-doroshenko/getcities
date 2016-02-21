@@ -12,12 +12,18 @@ import (
 	"time"
 )
 
-const url string = "http://www.webservicex.net/globalweather.asmx/GetCitiesByCountry?CountryName="
+// const url string = "http://www.webservicex.net/globalweather.asmx/GetCitiesByCountry?CountryName="
 
+var config Config
 var msgs = make(chan string)
 var done = make(chan bool)
 
 // var wg sync.WaitGroup // 1
+
+type Config struct {
+	Url     string `json:"url"`
+	Queries int    `json:"queriew"`
+}
 
 type XmlRecord struct {
 	XMLName    xml.Name `xml: "string"`
@@ -38,7 +44,7 @@ type LogRecord struct {
 }
 
 func getXml(country string) string {
-	resp, err := http.Get(url + country)
+	resp, err := http.Get(config.Url + country)
 
 	if err != nil {
 		fmt.Println(err.Error())
@@ -155,8 +161,26 @@ func getCities(country string) {
 	}
 }
 
+func readConfig() Config {
+	dat, err := ioutil.ReadFile("config.json")
+	if err != nil {
+		fmt.Println("Can't read configuration.")
+		os.Exit(1)
+	}
+
+	config := Config{}
+
+	if err := json.Unmarshal(dat, &config); err != nil {
+		panic(err)
+	}
+	fmt.Println("url: " + config.Url)
+	return config
+}
+
 func main() {
-	countries := os.Args[1:]
+	config = readConfig()
+
+	countries := os.Args[1:config.Queries]
 	// countries := []string{"Ukrain", "Poland", "Russia3838"}
 	// wg.Add(1) // 2
 

@@ -1,0 +1,4 @@
+{
+	"url":"http://www.webservicex.net/globalweather.asmx/GetCitiesByCountry?CountryName=",
+	"queries":10
+}
