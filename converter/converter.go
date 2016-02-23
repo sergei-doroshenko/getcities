@@ -12,18 +12,6 @@ import (
 	"github.com/sergei-doroshenko/getcities/logger"
 )
 
-/*type XmlRecord struct {
-	XMLName    xml.Name `xml: "string"`
-	NewDataSet struct {
-		XMLName xml.Name `xml: "NewDataSet"`
-		Table   []struct {
-			XMLName xml.Name `xml: "Table"`
-			Country string   `xml:"Country"`
-			City    string   `xml: City"`
-		} `xml: "Table"`
-	} `xml: "NewDataSet"`
-}*/
-
 type Entry struct {
 	XMLName xml.Name `xml: "Table"`
 	Country string   `xml:"Country"`

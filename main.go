@@ -25,7 +25,7 @@ func getCities(country string) {
 
 	v := converter.XmlRecord{}
 	err := xml.Unmarshal([]byte(xmlData), &v)
-	fmt.Println(v)
+
 	if err != nil {
 		fmt.Printf("error: %v", err)
 	}
