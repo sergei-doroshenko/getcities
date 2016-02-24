@@ -3,67 +3,117 @@ package converter
 import (
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"html"
-	"io/ioutil"
-	"net/http"
+	"net/url"
+	"sync"
 
-	"github.com/sergei-doroshenko/getcities/config"
-	"github.com/sergei-doroshenko/getcities/logger"
+	"github.com/sergei-doroshenko/getcities/datasource"
 )
 
 type Entry struct {
-	XMLName xml.Name `xml: "Table"`
-	Country string   `xml:"Country"`
-	City    string   `xml: City"`
+	XMLName xml.Name
+	Country string
+	City    string
 }
 
 type DataSet struct {
-	XMLName xml.Name `xml: "NewDataSet"`
+	XMLName xml.Name
 	Table   []Entry
 }
 
 type XmlRecord struct {
-	XMLName    xml.Name `xml: "string"`
+	XMLName    xml.Name
 	NewDataSet DataSet
 }
 
-type Getable func(url string) (resp *http.Response, err error)
+type Converter struct {
+	DataSource datasource.DataGetter
+}
 
-func GetXml(country string, conf *config.Config, fn Getable) string {
-	resp, err := fn(conf.Url + country)
+func (s Converter) GetXml(country string) (string, error) {
+
+	data, err := s.DataSource.GetData(url.QueryEscape(country))
 
 	if err != nil {
 		fmt.Println(err.Error())
-		return ""
+		return "", err
 	}
 
-	defer resp.Body.Close()
-
-	contents, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Printf("%s", err)
-		return ""
-	}
-	return html.UnescapeString(string(contents))
+	return html.UnescapeString(string(data)), nil
 }
 
-func ConvertToJson(xmlRecord XmlRecord) string {
+func (s Converter) GetXmlRecord(country string) (XmlRecord, error) {
+	v := XmlRecord{}
+	xmlData, err := s.GetXml(country)
+	if err != nil {
+		return v, err
+	}
+
+	if err := xml.Unmarshal([]byte(xmlData), &v); err != nil {
+		fmt.Println(err.Error())
+		return v, err
+	}
+
+	return v, nil
+}
+
+func (s Converter) ConvertToJson(xmlRecord XmlRecord) (string, error) {
 	records := xmlRecord.NewDataSet.Table
+
 	if len(records) > 0 {
 		var c string = xmlRecord.NewDataSet.Table[0].Country
-		var ct []string = make([]string, 0)
+		var ct []string = make([]string, 0, len(records))
 
 		for _, element := range xmlRecord.NewDataSet.Table {
 			ct = append(ct, element.City)
 		}
 
-		rec := logger.LogRecord{
+		type LogRecord struct {
+			Country string   `json:"country"`
+			Cities  []string `json:"cities"`
+			Error   string   `json:"error"`
+		}
+
+		rec := LogRecord{
 			Country: c,
 			Cities:  ct}
 
-		jsonData, _ := json.Marshal(rec)
-		return string(jsonData)
+		jsonData, err := json.Marshal(rec)
+		if err != nil {
+			return "", err
+		}
+		return string(jsonData), nil
 	}
-	return ""
+
+	return "", errors.New("Empty XmlRecord.")
+}
+
+func (s Converter) GetLogRecord(country string) (string, error) {
+
+	xmlRecord, err := s.GetXmlRecord(country)
+	if err != nil {
+		fmt.Println(err.Error())
+		return "", err
+	}
+
+	logRecord, err := s.ConvertToJson(xmlRecord)
+	if err != nil {
+		fmt.Println(err.Error())
+		return "", err
+	}
+
+	return logRecord, nil
+}
+
+func (s Converter) GetCities(country string, msgs chan string, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	recd, err := s.GetLogRecord(country)
+	if err != nil {
+		msgs <- err.Error()
+	} else {
+		msgs <- recd
+	}
 }

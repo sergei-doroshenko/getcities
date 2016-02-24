@@ -3,49 +3,16 @@ package logger
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"sync"
-	"time"
 )
 
-type LogRecord struct {
-	Country string   `json:"country"`
-	Cities  []string `json:"cities"`
-	Error   string   `json:"error"`
+type FileLogger struct {
+	LogFileName string
 }
 
-func createLogFile(filename string) {
-	_, err3 := os.Create(filename)
-	if err3 != nil {
-		fmt.Println(err3.Error())
-	} else {
-		fmt.Println("Created file: ", filename)
-	}
-}
+func (s FileLogger) appendToFile(text string) {
 
-func createLogsFolder(path string) {
-	err := os.MkdirAll(path, 0777)
-	if err != nil {
-		// fmt.Fprintf("MkdirAll %q : %s", path, err.Error())
-		fmt.Println(err.Error())
-	}
-}
-
-func appendToFile(path, filename, text string) {
-
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		fmt.Println("Folder not exists")
-		createLogsFolder(path)
-	}
-
-	fullpath := filepath.Join(path, filename)
-
-	if _, err := os.Stat(fullpath); os.IsNotExist(err) {
-		fmt.Println("File not exists")
-		createLogFile(fullpath)
-	}
-
-	f, err := os.OpenFile(fullpath, os.O_APPEND|os.O_WRONLY, 0600) //0644
+	f, err := os.OpenFile(s.LogFileName, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	if err != nil {
 		fmt.Println("File doesn't exist")
 		fmt.Println("Open file error: ", err.Error())
@@ -63,18 +30,19 @@ func appendToFile(path, filename, text string) {
 	defer f.Close()
 }
 
-func LogToFile(msgCount int, msgs chan string, wg *sync.WaitGroup) {
+func (s FileLogger) Log(msgCount int, msgs chan string, wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
-	current_time := time.Now().Local()
-	path := "logs"
-	filename := "cities-" + current_time.Format("2006-01-02") + ".log"
+	buffer := ""
 
 	for msgCount > 0 {
 		text := <-msgs
+		buffer += text + "\n\n"
 		fmt.Println("appender get messege: ", text)
-		appendToFile(path, filename, text)
+
 		msgCount--
 	}
+
+	s.appendToFile(buffer)
 }
