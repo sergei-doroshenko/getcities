@@ -28,6 +28,28 @@ type XmlRecord struct {
 	NewDataSet DataSet
 }
 
+func (s XmlRecord) Equals(r XmlRecord) bool {
+	if &s == &r {
+		return true
+	}
+
+	if s.XMLName != r.XMLName || s.NewDataSet.XMLName != r.NewDataSet.XMLName {
+		return false
+	}
+
+	if len(s.NewDataSet.Table) != len(r.NewDataSet.Table) {
+		return false
+	}
+
+	for i, v := range s.NewDataSet.Table {
+		if r.NewDataSet.Table[i] != v {
+			return false
+		}
+	}
+
+	return true
+}
+
 type Converter struct {
 	DataSource datasource.DataGetter
 }
@@ -84,6 +106,7 @@ func (s Converter) ConvertToJson(xmlRecord XmlRecord) (string, error) {
 		if err != nil {
 			return "", err
 		}
+
 		return string(jsonData), nil
 	}
 
