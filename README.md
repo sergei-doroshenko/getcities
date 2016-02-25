@@ -7,5 +7,7 @@ to run programm for double words countries, call
 ```
 go run main.go "russian federation"
 ```
-to compile on linux for another system:
+to compile on linux for another system (e.g. windows):
+```
 GOOS=windows GOARCH=386 go build -o main386.exe main.go
+```
